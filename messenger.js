@@ -23,7 +23,7 @@ const {
 /** ******* Implementation ********/
 
 class MessengerClient {
-  constructor (certAuthorityPublicKey, govPublicKey) {
+  constructor(certAuthorityPublicKey, govPublicKey) {
     // the certificate authority DSA public key is used to
     // verify the authenticity and integrity of certificates
     // of other users (see handout and receiveCertificate)
@@ -46,9 +46,9 @@ class MessengerClient {
    *
    * Return Type: certificate object/dictionary
    */
-  async generateCertificate (username) {
-    throw ('not implemented!')
-    const certificate = {}
+  async generateCertificate(username) {
+    let publicKey = generateEG()
+    const certificate = { "username": username, "publicKey": this.EGKeyPair.pub, "privateKey": this.EGKeyPair.sec }
     return certificate
   }
 
@@ -61,9 +61,9 @@ class MessengerClient {
  *
  * Return Type: void
  */
-  async receiveCertificate (certificate, signature) {
-  // The signature will be on the output of stringifying the certificate
-  // rather than on the certificate directly.
+  async receiveCertificate(certificate, signature) {
+    // The signature will be on the output of stringifying the certificate
+    // rather than on the certificate directly.
     const certString = JSON.stringify(certificate)
     throw ('not implemented!')
   }
@@ -77,7 +77,7 @@ class MessengerClient {
  *
  * Return Type: Tuple of [dictionary, string]
  */
-  async sendMessage (name, plaintext) {
+  async sendMessage(name, plaintext) {
     throw ('not implemented!')
     const header = {}
     const ciphertext = ''
@@ -93,7 +93,7 @@ class MessengerClient {
  *
  * Return Type: string
  */
-  async receiveMessage (name, [header, ciphertext]) {
+  async receiveMessage(name, [header, ciphertext]) {
     throw ('not implemented!')
     return plaintext
   }
