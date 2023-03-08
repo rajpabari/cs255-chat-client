@@ -47,8 +47,9 @@ class MessengerClient {
    * Return Type: certificate object/dictionary
    */
   async generateCertificate(username) {
-    let publicKey = generateEG()
-    const certificate = { "username": username, "publicKey": this.EGKeyPair.pub, "privateKey": this.EGKeyPair.sec }
+    let egKeyPair = generateEG()
+    this.EGKeyPair = egKeyPair
+    const certificate = { "username": username, "pub": egKeyPair.pub, "sec": egKeyPair.sec }
     return certificate
   }
 
