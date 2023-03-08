@@ -70,7 +70,7 @@ class MessengerClient {
       this.certs[certificate.username] = certificate
     }
     else {
-      throw ('Invalid certificate!')
+      throw new Error('Invalid signature!')
     }
   }
 
