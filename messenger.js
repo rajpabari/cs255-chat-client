@@ -84,9 +84,13 @@ class MessengerClient {
  * Return Type: Tuple of [dictionary, string]
  */
   async sendMessage(name, plaintext) {
-    throw ('not implemented!')
-    const header = {}
     const ciphertext = ''
+    if (!(name in this.conns)) {
+      const egKeyPair = generateEG()
+      this.conns[name] = { "egKeyPair": egKeyPair, "sharedSecret": computeDH(egKeyPair.sec, this.certs[name].pub) }
+    }
+    const header = { 'DHs': this.conns.name.EGKeyPair, 'vGov': govPublicKey, "cGov": "" }
+    //work with this.conns.name.egKeyPair
     return [header, ciphertext]
   }
 
