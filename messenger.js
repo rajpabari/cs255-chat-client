@@ -47,9 +47,9 @@ class MessengerClient {
    * Return Type: certificate object/dictionary
    */
   async generateCertificate(username) {
-    let egKeyPair = generateEG()
+    let egKeyPair = await generateEG()
     this.EGKeyPair = egKeyPair
-    const certificate = { "username": username, "pub": egKeyPair.pub, "sec": egKeyPair.sec }
+    const certificate = { "username": username, "pub": egKeyPair.pub }
     return certificate
   }
 
@@ -84,13 +84,21 @@ class MessengerClient {
  * Return Type: Tuple of [dictionary, string]
  */
   async sendMessage(name, plaintext) {
-    const ciphertext = ''
+
     if (!(name in this.conns)) {
-      const egKeyPair = generateEG()
-      this.conns[name] = { "egKeyPair": egKeyPair, "sharedSecret": computeDH(egKeyPair.sec, this.certs[name].pub) }
+      const egKeyPair = await generateEG();
+      const sharedSecret = await computeDH(egKeyPair.sec, this.certs.pub);
+      this.conns.name = { "egKeyPair": egKeyPair, "sharedSecret": sharedSecret };
     }
-    const header = { 'DHs': this.conns.name.EGKeyPair, 'vGov': govPublicKey, "cGov": "" }
-    //work with this.conns.name.egKeyPair
+    const header = { 'pub': this.conns.name.egKeyPair.pub, "iv": genRandomSalt(), "vGov": "", "cGov": "" };
+    const hkdfEncryptionKey = await HKDF(this.conns.name.sharedSecret, await HMACtoHMACKey(header.iv), "ratchet-str");
+    //note hkdf[0] is the new KDF and hkdf[1] is the new message key
+    //encrypt message
+    const aesKey = await HMACtoAESKey(hkdfEncryptionKey[1]);
+    const ciphertext = await encryptWithGCM(aesKey, plaintext, header.iv);
+
+    //store sending chain key
+    this.conns.name["sendingChainKey"] = hkdfEncryptionKey[0];
     return [header, ciphertext]
   }
 
