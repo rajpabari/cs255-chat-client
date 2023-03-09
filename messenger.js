@@ -66,7 +66,7 @@ class MessengerClient {
     // The signature will be on the output of stringifying the certificate
     // rather than on the certificate directly.
     const certString = JSON.stringify(certificate);
-    if (verifyWithECDSA(this.caPublicKey, certString, signature)) {
+    if (await verifyWithECDSA(this.caPublicKey, certString, signature)) {
       this.certs[certificate.username] = certificate;
     } else {
       throw new Error("Invalid signature!");
