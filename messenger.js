@@ -1,4 +1,4 @@
-'use strict'
+"use strict";
 
 /** ******* Imports ********/
 
@@ -17,8 +17,8 @@ const {
   encryptWithGCM, // async
   decryptWithGCM,
   cryptoKeyToJSON, // async
-  govEncryptionDataStr
-} = require('./lib')
+  govEncryptionDataStr,
+} = require("./lib");
 
 /** ******* Implementation ********/
 
@@ -30,11 +30,11 @@ class MessengerClient {
 
     // you can store data as needed in these objects.
     // Feel free to modify their structure as you see fit.
-    this.caPublicKey = certAuthorityPublicKey
-    this.govPublicKey = govPublicKey
-    this.conns = {} // data for each active connection
-    this.certs = {} // certificates of other users
-    this.EGKeyPair = {} // keypair from generateCertificate
+    this.caPublicKey = certAuthorityPublicKey;
+    this.govPublicKey = govPublicKey;
+    this.conns = {}; // data for each active connection
+    this.certs = {}; // certificates of other users
+    this.EGKeyPair = {}; // keypair from generateCertificate
   }
 
   /**
@@ -47,76 +47,76 @@ class MessengerClient {
    * Return Type: certificate object/dictionary
    */
   async generateCertificate(username) {
-    let egKeyPair = await generateEG()
-    this.EGKeyPair = egKeyPair
-    const certificate = { "username": username, "pub": egKeyPair.pub }
-    return certificate
+    let egKeyPair = await generateEG();
+    this.EGKeyPair = egKeyPair;
+    const certificate = { username: username, pub: egKeyPair.pub };
+    return certificate;
   }
 
   /**
- * Receive and store another user's certificate.
- *
- * Arguments:
- *   certificate: certificate object/dictionary
- *   signature: string
- *
- * Return Type: void
- */
+   * Receive and store another user's certificate.
+   *
+   * Arguments:
+   *   certificate: certificate object/dictionary
+   *   signature: string
+   *
+   * Return Type: void
+   */
   async receiveCertificate(certificate, signature) {
     // The signature will be on the output of stringifying the certificate
     // rather than on the certificate directly.
-    const certString = JSON.stringify(certificate)
+    const certString = JSON.stringify(certificate);
     if (verifyWithECDSA(this.caPublicKey, certString, signature)) {
-      this.certs[certificate.username] = certificate
-    }
-    else {
-      throw new Error('Invalid signature!')
+      this.certs[certificate.username] = certificate;
+    } else {
+      throw new Error("Invalid signature!");
     }
   }
 
   /**
- * Generate the message to be sent to another user.
- *
- * Arguments:
- *   name: string
- *   plaintext: string
- *
- * Return Type: Tuple of [dictionary, string]
- */
+   * Generate the message to be sent to another user.
+   *
+   * Arguments:
+   *   name: string
+   *   plaintext: string
+   *
+   * Return Type: Tuple of [dictionary, string]
+   */
   async sendMessage(name, plaintext) {
-
     if (!(name in this.conns)) {
-      const egKeyPair = await generateEG();
-      const sharedSecret = await computeDH(egKeyPair.sec, this.certs.pub);
-      this.conns.name = { "egKeyPair": egKeyPair, "sharedSecret": sharedSecret };
+      const RK = await computeDH(this.EGKeyPair.sec, this.certs.name.pub);
+      this.conns.name = { RK: RK, DHr: this.certs.name.pub };
     }
-    const header = { 'pub': this.conns.name.egKeyPair.pub, "iv": genRandomSalt(), "vGov": "", "cGov": "" };
-    const hkdfEncryptionKey = await HKDF(this.conns.name.sharedSecret, await HMACtoHMACKey(header.iv), "ratchet-str");
-    //note hkdf[0] is the new KDF and hkdf[1] is the new message key
-    //encrypt message
-    const aesKey = await HMACtoAESKey(hkdfEncryptionKey[1]);
-    const ciphertext = await encryptWithGCM(aesKey, plaintext, header.iv);
+    this.EGKeyPair = await generateEG();
+    const hkdfOutput = await HKDF(
+      this.conns.name.RK,
+      await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
+      "ratchet-str"
+    );
 
-    //store sending chain key
-    this.conns.name["sendingChainKey"] = hkdfEncryptionKey[0];
-    return [header, ciphertext]
+    this.conns.name.RK = await HMACtoHMACKey(hkdfOutput[0], govEncryptionDataStr);
+    this.conns.name.CKs = HMACtoAESKey(hkdfOutput[1], govEncryptionDataStr);
+
+    const ciphertext = await encryptWithGCM(this.conns.name.CKs, plaintext, iv);
+
+    return [header, ciphertext];
   }
 
   /**
- * Decrypt a message received from another user.
- *
- * Arguments:
- *   name: string
- *   [header, ciphertext]: Tuple of [dictionary, string]
- *
- * Return Type: string
- */
+   * Decrypt a message received from another user.
+   *
+   * Arguments:
+   *   name: string
+   *   [header, ciphertext]: Tuple of [dictionary, string]
+   *
+   * Return Type: string
+   */
   async receiveMessage(name, [header, ciphertext]) {
-    throw ('not implemented!')
-    return plaintext
+    throw "not implemented!";
+    return plaintext;
   }
-};
+}
 
 module.exports = {
-  MessengerClient
-}
+  MessengerClient,
+};
