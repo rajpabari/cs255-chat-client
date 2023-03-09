@@ -20,6 +20,9 @@ const {
   govEncryptionDataStr,
 } = require("./lib");
 
+// remove
+const { subtle } = require("node:crypto").webcrypto;
+
 /** ******* Implementation ********/
 
 class MessengerClient {
@@ -96,10 +99,10 @@ class MessengerClient {
       );
       this.conns[name].RK = hkdfOutputRatchet[0];
       this.conns[name].CKs = hkdfOutputRatchet[1];
-      this.conns[name].CKr = "";
     }
 
     const messageKey = await HMACtoAESKey(this.conns[name].CKs, govEncryptionDataStr);
+    console.log("message key sender", await subtle.exportKey("raw", messageKey));
     this.conns[name].CKs = await HMACtoHMACKey(this.conns[name].CKs, "HMACKeyGen");
 
     const iv = genRandomSalt();
@@ -149,8 +152,11 @@ class MessengerClient {
       await this.DHRatchet(name, header);
     }
 
-    const messageKey = await HMACtoAESKey(this.conns[name].CKs, govEncryptionDataStr);
-    this.conns[name].CKs = await HMACtoHMACKey(this.conns[name].CKs, "HMACKeyGen");
+    const messageKey = await HMACtoAESKey(this.conns[name].CKr, govEncryptionDataStr);
+    this.conns[name].CKr = await HMACtoHMACKey(this.conns[name].CKr, "HMACKeyGen");
+
+    // console.log("here!", this.conns);
+    console.log("message key receiver", await subtle.exportKey("raw", messageKey));
 
     //the following line is causing the cipher job failure
     const plaintext = await decryptWithGCM(messageKey, ciphertext, header.receiverIV);
