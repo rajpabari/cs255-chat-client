@@ -310,7 +310,6 @@ describe("Messenger", function () {
       let result = await bob.receiveMessage("alice", ct);
       expect(result).to.equal(message);
 
-      message = "Hello, Claire";
       ct = await alice.sendMessage("claire", message);
       result = await claire.receiveMessage("alice", ct);
       expect(result).to.equal(message);

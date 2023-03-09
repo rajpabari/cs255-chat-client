@@ -20,9 +20,6 @@ const {
   govEncryptionDataStr,
 } = require("./lib");
 
-// remove
-const { subtle } = require("node:crypto").webcrypto;
-
 /** ******* Implementation ********/
 
 class MessengerClient {
@@ -91,10 +88,10 @@ class MessengerClient {
       this.conns[name] = { RK: RK, DHr: this.certs[name].pub };
 
       //perform first ratchet
-      this.EGKeyPair = await generateEG();
+      this.conns[name].EGKeyPair = await generateEG();
       const hkdfOutputRatchet = await HKDF(
         this.conns[name].RK,
-        await computeDH(this.EGKeyPair.sec, this.conns[name].DHr),
+        await computeDH(this.conns[name].EGKeyPair.sec, this.conns[name].DHr),
         "ratchet-str"
       );
       this.conns[name].RK = hkdfOutputRatchet[0];
@@ -107,13 +104,19 @@ class MessengerClient {
     this.conns[name].CKs = await HMACtoHMACKey(this.conns[name].CKs, "HMACKeyGen");
 
     // should use a different public key?
-    let govKey = await computeDH(this.EGKeyPair.sec, this.govPublicKey);
+    let govKey = await computeDH(this.conns[name].EGKeyPair.sec, this.govPublicKey);
     govKey = await HMACtoAESKey(govKey, govEncryptionDataStr);
     const ivGov = genRandomSalt();
     const cGov = await encryptWithGCM(govKey, messageKeyBuffer, ivGov);
 
     const iv = genRandomSalt();
-    const header = { receiverIV: iv, pub: this.EGKeyPair.pub, vGov: this.EGKeyPair.pub, cGov: cGov, ivGov: ivGov };
+    const header = {
+      receiverIV: iv,
+      pub: this.conns[name].EGKeyPair.pub,
+      vGov: this.conns[name].EGKeyPair.pub,
+      cGov: cGov,
+      ivGov: ivGov,
+    };
     const ciphertext = await encryptWithGCM(messageKey, plaintext, iv, JSON.stringify(header));
 
     return [header, ciphertext];
@@ -123,16 +126,16 @@ class MessengerClient {
     this.conns[name].DHr = header.pub;
     const hkdfOutputRatchet1 = await HKDF(
       this.conns[name].RK,
-      await computeDH(this.EGKeyPair.sec, this.conns[name].DHr),
+      await computeDH(this.conns[name].EGKeyPair.sec, this.conns[name].DHr),
       "ratchet-str"
     );
     this.conns[name].RK = hkdfOutputRatchet1[0];
     this.conns[name].CKr = hkdfOutputRatchet1[1];
 
-    this.EGKeyPair = await generateEG();
+    this.conns[name].EGKeyPair = await generateEG();
     const hkdfOutputRatchet2 = await HKDF(
       this.conns[name].RK,
-      await computeDH(this.EGKeyPair.sec, this.conns[name].DHr),
+      await computeDH(this.conns[name].EGKeyPair.sec, this.conns[name].DHr),
       "ratchet-str"
     );
     this.conns[name].RK = hkdfOutputRatchet2[0];
@@ -152,7 +155,7 @@ class MessengerClient {
     if (!(name in this.conns)) {
       const RK = await computeDH(this.EGKeyPair.sec, this.certs[name].pub);
       // DHr will be updated when calling DHRatchet()
-      this.conns[name] = { RK: RK };
+      this.conns[name] = { RK: RK, EGKeyPair: this.EGKeyPair };
     }
 
     if (header.pub !== this.conns[name].DHr) {
