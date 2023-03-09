@@ -102,7 +102,7 @@ class MessengerClient {
     }
 
     const messageKey = await HMACtoAESKey(this.conns[name].CKs, govEncryptionDataStr);
-    console.log("message key sender", await subtle.exportKey("raw", messageKey));
+    // console.log("message key sender", await subtle.exportKey("raw", messageKey));
     this.conns[name].CKs = await HMACtoHMACKey(this.conns[name].CKs, "HMACKeyGen");
 
     const iv = genRandomSalt();
@@ -155,13 +155,12 @@ class MessengerClient {
     const messageKey = await HMACtoAESKey(this.conns[name].CKr, govEncryptionDataStr);
     this.conns[name].CKr = await HMACtoHMACKey(this.conns[name].CKr, "HMACKeyGen");
 
-    // console.log("here!", this.conns);
-    console.log("message key receiver", await subtle.exportKey("raw", messageKey));
+    // console.log("message key receiver", await subtle.exportKey("raw", messageKey));
 
     //the following line is causing the cipher job failure
     const plaintext = await decryptWithGCM(messageKey, ciphertext, header.receiverIV);
 
-    return plaintext;
+    return byteArrayToString(plaintext);
   }
 }
 
