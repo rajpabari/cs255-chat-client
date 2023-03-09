@@ -84,21 +84,28 @@ class MessengerClient {
    */
   async sendMessage(name, plaintext) {
     if (!(name in this.conns)) {
-      const RK = await computeDH(this.EGKeyPair.sec, this.certs.name.pub);
-      this.conns.name = { RK: RK, DHr: this.certs.name.pub };
+      const RK = await computeDH(this.EGKeyPair.sec, this.certs[name].pub);
+      this.conns.name = { RK: RK, DHr: this.certs[name].pub };
     }
-    this.EGKeyPair = await generateEG();
-    const hkdfOutput = await HKDF(
-      this.conns.name.RK,
-      await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
-      "ratchet-str"
-    );
+    if (!this.conns.name.ratchetComputed) {
+      this.EGKeyPair = await generateEG();
+      const hkdfOutputRatchet = await HKDF(
+        this.conns.name.RK,
+        await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
+        "ratchet-str"
+      );
+      this.conns.name.RK = hkdfOutputRatchet[0];
+      this.conns.name.CKs = hkdfOutputRatchet[1];
+      this.conns.name.ratchetComputed = true;
+    }
 
-    this.conns.name.RK = await HMACtoHMACKey(hkdfOutput[0], govEncryptionDataStr);
-    this.conns.name.CKs = HMACtoAESKey(hkdfOutput[1], govEncryptionDataStr);
+    const A1 = await HMACtoAESKey(this.conns.name.CKs, govEncryptionDataStr);
+    this.conns.name.CKs = await HMACtoHMACKey(this.conns.name.CKs, "HMACKeyGen");
 
-    const ciphertext = await encryptWithGCM(this.conns.name.CKs, plaintext, iv);
+    const iv = genRandomSalt();
+    const ciphertext = await encryptWithGCM(A1, plaintext, iv);
 
+    const header = { receiverIV: iv, pub: this.EGKeyPair.pub, "vGov": "", "cGov": "", "ivGov": "" }
     return [header, ciphertext];
   }
 
@@ -112,6 +119,8 @@ class MessengerClient {
    * Return Type: string
    */
   async receiveMessage(name, [header, ciphertext]) {
+    // compare the public key header with the public key in the connection DHr
+    // if they are not the same, then we need to recompute the ratchet (use flag )
     throw "not implemented!";
     return plaintext;
   }
