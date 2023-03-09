@@ -87,17 +87,6 @@ class MessengerClient {
       const RK = await computeDH(this.EGKeyPair.sec, this.certs[name].pub);
       this.conns.name = { RK: RK, DHr: this.certs[name].pub };
     }
-    if (!this.conns.name.ratchetComputed) {
-      this.EGKeyPair = await generateEG();
-      const hkdfOutputRatchet = await HKDF(
-        this.conns.name.RK,
-        await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
-        "ratchet-str"
-      );
-      this.conns.name.RK = hkdfOutputRatchet[0];
-      this.conns.name.CKs = hkdfOutputRatchet[1];
-      this.conns.name.ratchetComputed = true;
-    }
 
     const A1 = await HMACtoAESKey(this.conns.name.CKs, govEncryptionDataStr);
     this.conns.name.CKs = await HMACtoHMACKey(this.conns.name.CKs, "HMACKeyGen");
@@ -121,7 +110,24 @@ class MessengerClient {
   async receiveMessage(name, [header, ciphertext]) {
     // compare the public key header with the public key in the connection DHr
     // if they are not the same, then we need to recompute the ratchet (use flag )
-    throw "not implemented!";
+    if (!(name in this.conns)) {
+      const RK = await computeDH(this.EGKeyPair.sec, this.certs[name].pub);
+      this.conns.name = { RK: RK, DHr: header.pub };
+    }
+
+    if (header.pub !== this.conns.name.DHr) {
+
+      this.EGKeyPair = await generateEG();
+      const hkdfOutputRatchet = await HKDF(
+        this.conns.name.RK,
+        await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
+        "ratchet-str"
+      );
+      this.conns.name.RK = hkdfOutputRatchet[0];
+      this.conns.name.CKs = hkdfOutputRatchet[1];
+      this.conns.name.ratchetComputed = true;
+    }
+
     return plaintext;
   }
 }
