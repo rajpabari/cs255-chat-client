@@ -102,13 +102,20 @@ class MessengerClient {
     }
 
     const messageKey = await HMACtoAESKey(this.conns[name].CKs, govEncryptionDataStr);
+    const messageKeyBuffer = await HMACtoAESKey(this.conns[name].CKs, govEncryptionDataStr, true);
     // console.log("message key sender", await subtle.exportKey("raw", messageKey));
     this.conns[name].CKs = await HMACtoHMACKey(this.conns[name].CKs, "HMACKeyGen");
 
-    const iv = genRandomSalt();
-    const ciphertext = await encryptWithGCM(messageKey, plaintext, iv);
+    // should use a different public key?
+    let govKey = await computeDH(this.EGKeyPair.sec, this.govPublicKey);
+    govKey = await HMACtoAESKey(govKey, govEncryptionDataStr);
+    const ivGov = genRandomSalt();
+    const cGov = await encryptWithGCM(govKey, messageKeyBuffer, ivGov);
 
-    const header = { receiverIV: iv, pub: this.EGKeyPair.pub, vGov: "", cGov: "", ivGov: "" };
+    const iv = genRandomSalt();
+    const header = { receiverIV: iv, pub: this.EGKeyPair.pub, vGov: this.EGKeyPair.pub, cGov: cGov, ivGov: ivGov };
+    const ciphertext = await encryptWithGCM(messageKey, plaintext, iv, JSON.stringify(header));
+
     return [header, ciphertext];
   }
 
@@ -158,7 +165,7 @@ class MessengerClient {
     // console.log("message key receiver", await subtle.exportKey("raw", messageKey));
 
     //the following line is causing the cipher job failure
-    const plaintext = await decryptWithGCM(messageKey, ciphertext, header.receiverIV);
+    const plaintext = await decryptWithGCM(messageKey, ciphertext, header.receiverIV, JSON.stringify(header));
 
     return byteArrayToString(plaintext);
   }
