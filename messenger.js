@@ -86,16 +86,50 @@ class MessengerClient {
     if (!(name in this.conns)) {
       const RK = await computeDH(this.EGKeyPair.sec, this.certs[name].pub);
       this.conns.name = { RK: RK, DHr: this.certs[name].pub };
+
+      //perform first ratchet
+      this.EGKeyPair = await generateEG();
+      const hkdfOutputRatchet = await HKDF(
+        this.conns.name.RK,
+        await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
+        "ratchet-str"
+      );
+      this.conns.name.RK = hkdfOutputRatchet[0];
+      this.conns.name.CKs = hkdfOutputRatchet[1];
+      this.conns.name.CKr = "";
+
     }
 
-    const A1 = await HMACtoAESKey(this.conns.name.CKs, govEncryptionDataStr);
+    const messageKey = await HMACtoAESKey(this.conns.name.CKs, govEncryptionDataStr);
     this.conns.name.CKs = await HMACtoHMACKey(this.conns.name.CKs, "HMACKeyGen");
 
     const iv = genRandomSalt();
-    const ciphertext = await encryptWithGCM(A1, plaintext, iv);
+    const ciphertext = await encryptWithGCM(messageKey, plaintext, iv);
 
     const header = { receiverIV: iv, pub: this.EGKeyPair.pub, "vGov": "", "cGov": "", "ivGov": "" }
     return [header, ciphertext];
+  }
+
+  async DHRatchet(header) {
+
+    this.conns.name.DHr = header.pub
+    const hkdfOutputRatchet1 = await HKDF(
+      this.conns.name.RK,
+      await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
+      "ratchet-str"
+    );
+    this.conns.name.RK = hkdfOutputRatchet1[0];
+    this.conns.name.CKr = hkdfOutputRatchet1[1];
+
+
+    this.EGKeyPair = await generateEG();
+    const hkdfOutputRatchet2 = await HKDF(
+      this.conns.name.RK,
+      await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
+      "ratchet-str"
+    );
+    this.conns.name.RK = hkdfOutputRatchet2[0];
+    this.conns.name.CKs = hkdfOutputRatchet2[1];
   }
 
   /**
@@ -112,21 +146,18 @@ class MessengerClient {
     // if they are not the same, then we need to recompute the ratchet (use flag )
     if (!(name in this.conns)) {
       const RK = await computeDH(this.EGKeyPair.sec, this.certs[name].pub);
-      this.conns.name = { RK: RK, DHr: header.pub };
+      this.conns.name = { RK: RK, DHr: "" };
     }
 
     if (header.pub !== this.conns.name.DHr) {
-
-      this.EGKeyPair = await generateEG();
-      const hkdfOutputRatchet = await HKDF(
-        this.conns.name.RK,
-        await computeDH(this.EGKeyPair.sec, this.conns.name.DHr),
-        "ratchet-str"
-      );
-      this.conns.name.RK = hkdfOutputRatchet[0];
-      this.conns.name.CKs = hkdfOutputRatchet[1];
-      this.conns.name.ratchetComputed = true;
+      await this.DHRatchet(header);
     }
+
+    const messageKey = await HMACtoAESKey(this.conns.name.CKs, govEncryptionDataStr);
+    this.conns.name.CKs = await HMACtoHMACKey(this.conns.name.CKs, "HMACKeyGen");
+
+    //the following line is causing the cipher job failure
+    const plaintext = await decryptWithGCM(messageKey, ciphertext, header.receiverIV);
 
     return plaintext;
   }
