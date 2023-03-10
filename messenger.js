@@ -104,7 +104,8 @@ class MessengerClient {
     this.conns[name].CKs = await HMACtoHMACKey(this.conns[name].CKs, "HMACKeyGen");
 
     // should use a different public key?
-    let govKey = await computeDH(this.conns[name].EGKeyPair.sec, this.govPublicKey);
+    const egKeyPairGov = await generateEG();
+    let govKey = await computeDH(egKeyPairGov.sec, this.govPublicKey);
     govKey = await HMACtoAESKey(govKey, govEncryptionDataStr);
     const ivGov = genRandomSalt();
     const cGov = await encryptWithGCM(govKey, messageKeyBuffer, ivGov);
@@ -113,7 +114,7 @@ class MessengerClient {
     const header = {
       receiverIV: iv,
       pub: this.conns[name].EGKeyPair.pub,
-      vGov: this.conns[name].EGKeyPair.pub,
+      vGov: egKeyPairGov.pub,
       cGov: cGov,
       ivGov: ivGov,
     };
